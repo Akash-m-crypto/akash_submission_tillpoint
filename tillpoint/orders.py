@@ -27,10 +27,12 @@ class Orders:
                 self.catalog.reserve(sku, qty)
             if coupon is not None:
                 self.conn.execute("UPDATE coupons SET uses = uses + 1 WHERE code = ?", (coupon_code,))
+            # A zero-total order (100% coupon) will never receive a payment, so it starts out paid.
+            status = "paid" if totals["total_cents"] == 0 else "pending"
             cur = self.conn.execute(
-                "INSERT INTO orders (customer, region, coupon, subtotal_cents, discount_cents, tax_cents,"
-                " total_cents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (customer, region, coupon_code, totals["subtotal_cents"], totals["discount_cents"],
+                "INSERT INTO orders (customer, region, status, coupon, subtotal_cents, discount_cents, tax_cents,"
+                " total_cents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (customer, region, status, coupon_code, totals["subtotal_cents"], totals["discount_cents"],
                  totals["tax_cents"], totals["total_cents"], db.to_iso(now or db.utcnow())),
             )
             order_id = cur.lastrowid
