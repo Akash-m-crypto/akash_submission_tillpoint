@@ -37,8 +37,8 @@ class Catalog:
         return Product(row["sku"], row["name"], row["price_cents"], row["stock"])
 
     def update_price(self, sku, price_cents):
-        if price_cents < 0:
-            raise ValueError("price must not be negative")
+        if type(price_cents) is not int or price_cents < 0:
+            raise ValueError("price_cents must be a non-negative whole number of cents")
         cur = self.conn.execute("UPDATE products SET price_cents = ? WHERE sku = ?", (price_cents, sku))
         if cur.rowcount == 0:
             raise UnknownProduct(sku)

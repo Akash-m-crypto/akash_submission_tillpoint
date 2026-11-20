@@ -14,6 +14,9 @@ class Payments:
         """event: dict(id, type, order_id, amount_cents). Returns the order's status after the event."""
         if event.get("type") != "payment.succeeded":
             return None
+        amount = event["amount_cents"]
+        if type(amount) is not int or amount <= 0:   # bool is an int subclass, so check the exact type
+            raise ValueError("amount_cents must be a positive whole number of cents")
         self.conn.execute("BEGIN IMMEDIATE")
         try:
             status = self._record(event, now)
