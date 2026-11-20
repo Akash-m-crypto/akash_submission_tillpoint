@@ -16,8 +16,9 @@ class Orders:
         """items: list of (sku, qty). Reserves stock, redeems the coupon and stores the order, all or nothing."""
         if not items:
             raise OrderError("an order needs at least one item")
-        if any(qty <= 0 for _, qty in items):
-            raise OrderError("quantities must be positive")
+        # exact type check: bool is an int subclass, and 1.5 units would leave fractional stock behind
+        if any(type(qty) is not int or qty <= 0 for _, qty in items):
+            raise OrderError("quantities must be positive whole numbers")
         self.conn.execute("BEGIN IMMEDIATE")
         try:
             coupon = self._coupon(coupon_code)
