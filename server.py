@@ -10,9 +10,15 @@ from tillpoint.api import App, dumps
 def make_handler(app):
     class Handler(BaseHTTPRequestHandler):
         def _serve(self):
-            length = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(length)) if length else None
-            status, payload = app.handle(self.command, self.path, body)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(length)) if length else None
+                if body is not None and not isinstance(body, dict):
+                    raise ValueError("body must be a JSON object")
+            except ValueError as e:  # includes json.JSONDecodeError and a bad Content-Length
+                status, payload = 400, {"error": f"bad request: {e}"}
+            else:
+                status, payload = app.handle(self.command, self.path, body)
             data = dumps(payload).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
