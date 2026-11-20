@@ -74,7 +74,10 @@ class Orders:
         order = self.get(order_id)
         if order["status"] != "paid":
             raise OrderError("only a paid order can ship")
-        self.conn.execute("UPDATE orders SET status = 'shipped' WHERE id = ?", (order_id,))
+        # Conditional update: only ship if the order is still 'paid' at write time (it may have been cancelled meanwhile).
+        cur = self.conn.execute("UPDATE orders SET status = 'shipped' WHERE id = ? AND status = 'paid'", (order_id,))
+        if cur.rowcount == 0:
+            raise OrderError("only a paid order can ship")
         return self.get(order_id)
 
     def get(self, order_id):
