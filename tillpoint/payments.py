@@ -14,15 +14,28 @@ class Payments:
         """event: dict(id, type, order_id, amount_cents). Returns the order's status after the event."""
         if event.get("type") != "payment.succeeded":
             return None
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            status = self._record(event, now)
+            self.conn.execute("COMMIT")
+        except Exception:
+            self.conn.execute("ROLLBACK")
+            raise
+        return status
+
+    def _record(self, event, now):
+        # Read the order inside the write lock so a concurrent cancel or payment can't change it under us.
         order = self.conn.execute("SELECT * FROM orders WHERE id = ?", (event["order_id"],)).fetchone()
         if order is None:
             raise PaymentError(f"payment for unknown order {event['order_id']}")
         if order["status"] == "cancelled":
             raise PaymentError(f"order {order['id']} is cancelled")
-        self.conn.execute(
-            "INSERT INTO payments (order_id, event_id, amount_cents, received_at) VALUES (?, ?, ?, ?)",
+        cur = self.conn.execute(
+            "INSERT OR IGNORE INTO payments (order_id, event_id, amount_cents, received_at) VALUES (?, ?, ?, ?)",
             (order["id"], event["id"], event["amount_cents"], db.to_iso(now or db.utcnow())),
         )
+        if cur.rowcount == 0:
+            return order["status"]  # a retry of an event we already recorded: nothing to add, same answer
         if order["status"] == "pending" and self.paid_cents(order["id"]) >= order["total_cents"]:
             self.conn.execute("UPDATE orders SET status = 'paid' WHERE id = ?", (order["id"],))
             return "paid"
