@@ -46,13 +46,15 @@ class Orders:
 
     def cancel(self, order_id):
         """Cancel an order that has not shipped. Its stock and its coupon use go back."""
-        order = self.get(order_id)
-        if order["status"] == "cancelled":
-            return order
-        if order["status"] == "shipped":
-            raise OrderError("a shipped order cannot be cancelled")
         self.conn.execute("BEGIN IMMEDIATE")
         try:
+            # Read the status under the write lock: two workers cancelling the same order must not both restock it.
+            order = self.get(order_id)
+            if order["status"] == "cancelled":
+                self.conn.execute("COMMIT")
+                return order
+            if order["status"] == "shipped":
+                raise OrderError("a shipped order cannot be cancelled")
             # Stock is taken when the order is created, so every order that gets here
             # (pending or paid; cancelled and shipped returned above) is holding stock.
             for item in order["items"]:
