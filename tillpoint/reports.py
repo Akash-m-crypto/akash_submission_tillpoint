@@ -32,3 +32,14 @@ def top_products(conn, limit=5):
         (limit,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def overpaid_orders(conn):
+    """Orders that have received more money than they cost, i.e. a customer who paid twice. Refunds are manual."""
+    rows = conn.execute(
+        "SELECT o.id AS order_id, o.customer, o.total_cents, SUM(p.amount_cents) AS paid_cents,"
+        " SUM(p.amount_cents) - o.total_cents AS overpaid_cents"
+        " FROM orders o JOIN payments p ON p.order_id = o.id"
+        " GROUP BY o.id HAVING SUM(p.amount_cents) > o.total_cents ORDER BY o.id"
+    ).fetchall()
+    return [dict(r) for r in rows]
